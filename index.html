@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Generator</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="bg-white p-8 md:p-12 rounded-2xl shadow-xl max-w-lg w-full m-4">
+
+        <!-- Form Container -->
+        <div id="form-container">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Generate Your Certificate</h1>
+            <p class="text-gray-600 mb-8">Enter your details below. Your email will be verified against our registration
+                list.</p>
+
+            <form id="certificate-form">
+                <div class="mb-4">
+                    <label for="name" class="block text-gray-700 font-semibold mb-2">Full Name</label>
+                    <input type="text" id="name" name="name"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., Jane Doe" required>
+                </div>
+                <div class="mb-4">
+                    <label for="branch" class="block text-gray-700 font-semibold mb-2">Branch</label>
+                    <input type="text" id="branch" name="branch"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., Computer Science" required>
+                </div>
+                <div class="mb-6">
+                    <label for="email" class="block text-gray-700 font-semibold mb-2">Registered Email Address</label>
+                    <input type="email" id="email" name="email"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Your registered email for verification" required>
+                </div>
+                <button type="submit"
+                    class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors duration-300 text-lg">
+                    Verify & Generate Certificate
+                </button>
+            </form>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading-container" class="hidden text-center">
+            <div class="loader mx-auto mb-4"></div>
+            <p id="loading-text" class="text-lg font-semibold text-gray-700">Verifying your registration...</p>
+            <p class="text-gray-500">Please wait a moment.</p>
+        </div>
+
+        <!-- Success Message -->
+        <div id="success-container" class="hidden text-center">
+            <svg class="mx-auto h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 class="text-2xl font-bold text-gray-800 mt-4">Success!</h2>
+            <p class="text-gray-600 mt-2">Your certificate has been downloaded. Your details have been recorded.</p>
+            <button onclick="resetForm()"
+                class="mt-6 bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Generate
+                Another</button>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-container" class="hidden text-center">
+            <svg class="mx-auto h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h2 class="text-2xl font-bold text-gray-800 mt-4">Verification Failed</h2>
+            <p id="error-text" class="text-gray-600 mt-2">The email you entered was not found in our registration list.
+                Please use the email you registered with and try again.</p>
+            <button onclick="resetForm()"
+                class="mt-6 bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Try
+                Again</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const googleScriptURL = 'https://script.google.com/macros/s/AKfycbxe4E9veTie4EeQFbFELtdSDYf1wu4tcJvLU4ARb_GRLCOUvyPfKHhIhfnRNQYYNfW_/exec';
+        const certificateTemplatePath = './certificate_template.jpg';
+        const nameConfig = {
+            x: 960, y: 600, font: 'bold 70px Times New Roman', color: '#c59d5f', align: 'center'
+        };
+        const branchConfig = {
+            x: 960, y: 710, font: '40px Times New Roman', color: '#333333', align: 'center'
+        };
+
+
+        const form = document.getElementById('certificate-form');
+        const formContainer = document.getElementById('form-container');
+        const loadingContainer = document.getElementById('loading-container');
+        const loadingText = document.getElementById('loading-text');
+        const successContainer = document.getElementById('success-container');
+        const errorContainer = document.getElementById('error-container');
+        const errorText = document.getElementById('error-text');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            const branch = document.getElementById('branch').value.trim();
+            const email = document.getElementById('email').value.trim();
+
+            if (!name || !branch || !email) {
+
+                errorContainer.classList.remove('hidden');
+                errorText.textContent = "Please fill out all fields before submitting.";
+                return;
+            }
+
+
+            formContainer.classList.add('hidden');
+            successContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            loadingText.textContent = 'Verifying your registration...';
+            loadingContainer.classList.remove('hidden');
+
+            try {
+                //  Verify Email by making a GET request
+                const verificationUrl = `${googleScriptURL}?email=${encodeURIComponent(email)}`;
+                const response = await fetch(verificationUrl);
+                if (!response.ok) throw new Error('Network response was not ok.');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+
+                    loadingText.textContent = 'Generating your certificate...';
+
+
+                    await Promise.all([
+                        generateCertificate(name, branch),
+                        recordDetails(name, email, branch)
+                    ]);
+
+                    loadingContainer.classList.add('hidden');
+                    successContainer.classList.remove('hidden');
+
+                } else {
+
+                    throw new Error(result.message || 'Email not found.');
+                }
+            } catch (err) {
+                loadingContainer.classList.add('hidden');
+                errorText.textContent = `Error: ${err.message}. Please check your email and try again.`;
+                errorContainer.classList.remove('hidden');
+                console.error('Verification or generation failed:', err);
+            }
+        });
+
+        async function generateCertificate(name, branch) {
+            const image = await loadImage(certificateTemplatePath);
+            const canvas = document.createElement('canvas');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0);
+
+            ctx.font = nameConfig.font;
+            ctx.fillStyle = nameConfig.color;
+            ctx.textAlign = nameConfig.align;
+            ctx.fillText(name, nameConfig.x, nameConfig.y);
+
+            const year = 2025;
+            const branchText = `[ ${branch} - ${year} ]`;
+            ctx.font = branchConfig.font;
+            ctx.fillStyle = branchConfig.color;
+            ctx.textAlign = branchConfig.align;
+            ctx.fillText(branchText, branchConfig.x, branchConfig.y);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `Certificate_${name.replace(/\s/g, '_')}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error(`Failed to load image at ${src}`));
+                img.src = src;
+            });
+        }
+
+        async function recordDetails(name, email, branch) {
+            if (googleScriptURL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+                console.warn("Google Script URL is not set. Skipping data recording.");
+                return;
+            }
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('email', email);
+            formData.append('branch', branch);
+
+            // Make a POST request to log the data
+            await fetch(googleScriptURL, { method: 'POST', body: formData });
+        }
+
+        function resetForm() {
+            form.reset();
+            successContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            loadingContainer.classList.add('hidden');
+            formContainer.classList.remove('hidden');
+        }
+    </script>
+</body>
+
+</html>
